@@ -85,13 +85,17 @@ const meta = moduleMeta('emission')
 const columns = ["监控编号", "监控指标", "限值要求", "实测值", "达标判定", "监控日期", "监控人员", "监控状态"]
 const actions = ["提交监控", "判定达标", "标记未达标"]
 const statuses = ["待监控", "监控中", "已达标", "未达标"]
-const stats = [{"label": "待监控指标", "value": 0}, {"label": "已达标指标", "value": 0}, {"label": "未达标指标", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+const stats = computed(() => [
+  { label: '待监控指标', value: rows.value.filter((row) => String(row.status) === '待监控').length },
+  { label: '已达标指标', value: rows.value.filter((row) => String(row.status) === '已达标').length },
+  { label: '未达标指标', value: rows.value.filter((row) => String(row.status) === '未达标').length },
+])
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,

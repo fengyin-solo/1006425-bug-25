@@ -3,10 +3,11 @@
     <header class="page-head">
       <div>
         <h2>在线排放监测管理</h2>
-        <p class="page-desc">维护排放监测记录，围绕监测编号、监测因子、实测值、排放限值做登记、筛选与状态流转。</p>
+        <p class="page-desc">维护排放监测记录，围绕监测编号、监测因子、实测值、排放限值做登记、筛选与状态流转；排放限值与折算系数统一按当前判定标准取值。</p>
       </div>
       <div class="page-actions">
-        <button class="btn primary" type="button" @click="openCreate">登记排放监测记录</button>
+        <button class="btn primary" type="button" @click="runRecalc">按当前标准重算</button>
+        <button class="btn" type="button" @click="openCreate">登记排放监测记录</button>
         <button class="btn" type="button" @click="exportRows">导出在线排放监测清单</button>
       </div>
     </header>
@@ -23,6 +24,13 @@
         {{ item.status }}：{{ item.count }}
       </span>
     </p>
+
+    <div v-if="recalcMessage" class="recalc-report">
+      <p class="recalc-summary">{{ recalcMessage }}</p>
+      <ul v-if="recalcDetails.length">
+        <li v-for="line in recalcDetails" :key="line">{{ line }}</li>
+      </ul>
+    </div>
 
     <form class="filter-bar" @submit.prevent="reload">
       <label v-for="field in filterFields" :key="field" class="filter-item">
@@ -77,21 +85,28 @@ import {
   downloadEntries,
   listEntries,
   moduleMeta,
+  recalculateCemsEntries,
   runAction as applyAction,
 } from '@/api/local-service'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('cems')
-const columns = ["监测编号", "监测因子", "实测值", "排放限值", "折算值", "采集时间", "审核人员", "监测状态"]
+const columns = ["监测编号", "监测因子", "实测值", "折算系数", "折算值", "排放限值", "重算差值", "适用标准", "采集时间", "审核人员", "监测状态"]
 const actions = ["提交采集", "确认审核", "标记超标"]
 const statuses = ["待采集", "已采集", "已审核", "超标预警"]
-const stats = [{"label": "待采集因子", "value": 0}, {"label": "已审核因子", "value": 0}, {"label": "超标预警次数", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
+const recalcMessage = ref('')
+const recalcDetails = ref<string[]>([])
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+const stats = computed(() => [
+  { label: '待采集因子', value: rows.value.filter((row) => String(row.status) === '待采集').length },
+  { label: '已审核因子', value: rows.value.filter((row) => String(row.status) === '已审核').length },
+  { label: '超标预警次数', value: rows.value.filter((row) => String(row.status) === '超标预警').length },
+])
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -110,6 +125,14 @@ function exportRows() {
 
 function openCreate() {
   errorMessage.value = '排放监测记录登记入口尚未接入审批流'
+}
+
+function runRecalc() {
+  errorMessage.value = ''
+  const result = recalculateCemsEntries()
+  recalcMessage.value = result.message
+  recalcDetails.value = result.details
+  reload()
 }
 
 function runAction(action: string, row: EntryRow) {
