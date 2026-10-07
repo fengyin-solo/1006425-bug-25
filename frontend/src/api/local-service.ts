@@ -1,5 +1,6 @@
 import { MODULE_BY_KEY } from '@/data/modules'
 import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
+import { countWarnings } from '@/data/cems-service'
 import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
 
 // 会写进数据的「往回走」动作：命中就把这条记录标成异常态，看板上能一眼看出来。
@@ -42,6 +43,14 @@ export function runAction(key: string, id: number, action: string): ActionResult
   const current = String(rows[index].status)
   if (current === target) {
     return { ok: false, message: `${meta.entity}已经是「${target}」，不用重复操作` }
+  }
+  // 状态流转白名单：登记了允许来源的动作，只能从指定状态发起，不允许越级。
+  const allowedFrom = meta.transitions?.[action]
+  if (allowedFrom && !allowedFrom.includes(current)) {
+    return {
+      ok: false,
+      message: `审核状态不允许越级：「${action}」只能从「${allowedFrom.join('、')}」发起，当前为「${current}」`,
+    }
   }
   const lastStatus = meta.statuses[meta.statuses.length - 1]
   const updated: EntryRow = {
@@ -86,6 +95,7 @@ export function downloadEntries(key: string): void {
 
 export function loadOverview(): OverviewResult {
   const rows = allRows()
+  const warningTotal = countWarnings()
   const modules = [...MODULE_BY_KEY.values()].map((meta) => {
     const entries = rows[meta.key] ?? []
     return {
@@ -93,6 +103,8 @@ export function loadOverview(): OverviewResult {
       created: entries.length,
       pending: entries.filter((row) => row.pending).length,
       abnormal: entries.filter((row) => row.abnormal).length,
+      // 在线排放监测的异常量就是超标预警量；预警数全局同源，保证三处口径一致。
+      warnings: meta.key === 'cems' ? warningTotal : 0,
     }
   })
   const cards = [
@@ -100,6 +112,7 @@ export function loadOverview(): OverviewResult {
     { label: '登记总量', value: modules.reduce((sum, item) => sum + item.created, 0) },
     { label: '待处理', value: modules.reduce((sum, item) => sum + item.pending, 0) },
     { label: '异常量', value: modules.reduce((sum, item) => sum + item.abnormal, 0) },
+    { label: '排放超标预警', value: warningTotal },
   ]
   return { cards, modules }
 }

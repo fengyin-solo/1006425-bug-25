@@ -17,6 +17,8 @@ export type ModuleMeta = {
   statuses: string[]
   actions: string[]
   actionTargets: Record<string, string>
+  /** 状态流转白名单：动作只允许从指定状态发起；未登记的动作不做来源限制。 */
+  transitions?: Record<string, string[]>
   metrics: string[]
 }
 
@@ -34,5 +36,5 @@ export type ActionResult = {
 
 export type OverviewResult = {
   cards: { label: string; value: number }[]
-  modules: { name: string; created: number; pending: number; abnormal: number }[]
+  modules: { name: string; created: number; pending: number; abnormal: number; warnings: number }[]
 }
